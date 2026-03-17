@@ -4,7 +4,7 @@
   "description": "> Global database architecture utilizing Atlas Zone Sharding for localization and multi-region read preferences.",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "node dist/index.js",
     "dev": "nodemon -w src --ext ts --exec ts-node src/index.ts",
     "build": "tsc"
   },
