@@ -1,5 +1,7 @@
 # Multi-Region Mongo Patterns
 
+[![CI](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 MongoDB Atlas zone sharding patterns for GDPR-compliant multi-region data residency. Ensures tenant data stays within its legal jurisdiction (EU, USA, KSA) while presenting a single global connection string to the application layer.
 
 ## Problem
