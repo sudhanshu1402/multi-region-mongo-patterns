@@ -1,7 +1,7 @@
 {
   "name": "multi-region-mongo-patterns",
   "version": "1.0.0",
-  "description": "> Global database architecture utilizing Atlas Zone Sharding for localization and multi-region read preferences.",
+  "description": "MongoDB Atlas zone-sharding patterns for multi-region data residency: region-prefixed shard keys, zone-targeted reads, and nearest read preference. A patterns reference (zone routing activates on a real Atlas cluster).",
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",

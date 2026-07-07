@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-MongoDB Atlas zone sharding patterns for GDPR-compliant multi-region data residency. Ensures tenant data stays within its legal jurisdiction (EU, USA, KSA) while presenting a single global connection string to the application layer.
+MongoDB Atlas zone-sharding patterns for multi-region data residency (GDPR, Saudi PDPL, and similar data-sovereignty regimes). Demonstrates how tenant data can be pinned to its legal jurisdiction (EU, USA, KSA) while the application sees a single global connection string.
+
+> **Scope:** the deliverable is the schemas, compound shard keys, and zone-targeted query patterns. Zone routing only takes effect on a real Atlas cluster with configured shard zones — locally a single MongoDB instance stands in for the topology (see [Setup](#setup)). This is a patterns reference, not a turnkey compliance solution.
 
 ## Problem
 
