@@ -2,6 +2,7 @@ import express from 'express';
 import { connectToGlobalCluster } from './db/connection';
 import { Tenant } from './models/tenant';
 import { User } from './models/user';
+import { checkUserResidency } from './residency';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -29,6 +30,13 @@ app.post('/api/v1/tenants', async (req, res) => {
 app.post('/api/v1/users', async (req, res) => {
   try {
     const { email, tenantId, region } = req.body;
+    // Enforce data residency: the user's region must match its tenant's zone.
+    const tenant = await Tenant.findOne({ tenantId });
+    const check = checkUserResidency(tenant, region);
+    if (!check.ok) {
+      res.status(check.status ?? 400).json({ error: check.error });
+      return;
+    }
     const user = await User.create({ email, tenantId, region });
     res.status(201).json(user);
   } catch (error: any) {

@@ -35,12 +35,13 @@ export const connectToGlobalCluster = async () => {
     // In a real Atlas environment, the connection string contains
     // the readPreference configuration which routes reads to the nearest node 
     // to lower latency.
+    const readPreference = resolveReadPreference(DEFAULT_PREF);
     await mongoose.connect(MONGO_URI, {
-      readPreference: DEFAULT_PREF as mongodb.ReadPreferenceMode,
+      readPreference: readPreference as mongodb.ReadPreferenceMode,
       // The application connects to a global conceptual cluster but queries
       // will be explicitly targeted to local zone tags via models.
     });
-    console.log(`[MongoDB] Connected to Global Cluster with read preference: ${DEFAULT_PREF}`);
+    console.log(`[MongoDB] Connected to Global Cluster with read preference: ${readPreference}`);
   } catch (error) {
     console.error('[MongoDB] Connection error', error);
     process.exit(1);
