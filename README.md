@@ -48,12 +48,14 @@ graph TB
 | **MongoDB Atlas** | Managed zone sharding with geographic shard zones. Single connection string abstracts multi-region topology. |
 | **Mongoose** | Schema validation + index definitions co-located with model code. Compound indexes match shard keys for optimal query routing. |
 | **Express 5** | Thin API layer demonstrating zone-targeted writes and reads. |
+| **Vitest** | Unit tests for the routing and residency logic that run without a live database. |
 
 ## Key Features
 
 - **Zone-targeted writes** -- documents automatically routed to the correct regional shard based on `region` field
 - **Targeted reads** -- queries including `region` hit only the relevant shard, avoiding scatter-gather
-- **Nearest read preference** -- reads served from geographically closest replica for minimum latency
+- **Write-time residency guard** -- `POST /users` rejects a user whose `region` doesn't match its tenant's zone (409) or references a missing tenant (404), so a record can't land in a zone that violates the tenant's residency
+- **Nearest read preference** -- reads served from geographically closest replica for minimum latency; `DEFAULT_READ_PREFERENCE` is validated against the five MongoDB modes and falls back to `nearest` on a typo
 - **Compound shard key indexes** -- `{ region: 1, tenantId: 1 }` indexes match Atlas zone ranges
 - **Three-region support** -- EU (Frankfurt), USA (Virginia), KSA (Riyadh) with extensible region enum
 
@@ -96,25 +98,59 @@ Always include `region` in queries to avoid scatter-gather.
 3. **Missing region in write** -- Mongoose schema validation rejects documents without valid region enum.
 4. **Scatter-gather on bad query** -- performance issue, not failure. Monitor with Atlas Query Profiler.
 
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/tenants` | Create a tenant pinned to a region (`EU` / `USA` / `KSA`). |
+| `POST` | `/api/v1/users` | Create a user; rejected unless its `region` matches its tenant's zone. |
+| `GET` | `/api/v1/users/:region/:tenantId` | Targeted read (region in the path routes to a single shard, served `nearest`). |
+
 ## Setup
+
+Requires Node 22 (see `.nvmrc`).
 
 ```bash
 npm install
 cp .env.example .env  # Configure MONGO_URI
-npm run dev
+npm run dev           # ts-node + nodemon; or `npm run build && npm start`
 ```
 
 ```bash
-# Create a tenant in EU zone
+# Create a tenant in the EU zone
 curl -X POST http://localhost:3000/api/v1/tenants \
   -H "Content-Type: application/json" \
   -d '{"tenantId": "acme-eu", "name": "Acme GmbH", "region": "EU"}'
 
-# Query users in EU zone (targeted read)
+# Create a user in the same zone (allowed)
+curl -X POST http://localhost:3000/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{"email": "ana@acme.eu", "tenantId": "acme-eu", "region": "EU"}'
+
+# Wrong region for that tenant -> 409 data residency violation
+curl -X POST http://localhost:3000/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{"email": "ana@acme.eu", "tenantId": "acme-eu", "region": "USA"}'
+
+# Query users in the EU zone (targeted read)
 curl http://localhost:3000/api/v1/users/EU/acme-eu
 ```
 
 For local development, a single MongoDB instance simulates the topology. Zone sharding behavior only activates on Atlas with configured shard zones.
+
+## Tests
+
+```bash
+npm test   # vitest run
+```
+
+The suite covers the logic you can verify without a cluster:
+
+- `tests/residency.test.ts` -- the write-time residency guard (match, missing tenant, region mismatch, missing user region).
+- `tests/routing.test.ts` -- `resolveReadPreference`: every valid mode passes through, everything else (typo, wrong case, empty) falls back to `nearest`.
+- `tests/models.test.ts` -- Mongoose schema validation (region enum, required fields, defaults) and the region-leading compound shard-key index on both models. Uses `validateSync()`, so no database connection is made.
+
+CI (`.github/workflows/ci.yml`) runs the build and tests on Node 20 and 22.
 
 ## Future Improvements
 
