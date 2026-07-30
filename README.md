@@ -1,16 +1,16 @@
-# Multi-Region Mongo Patterns
+# multi-region-mongo-patterns
 
 [![CI](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-MongoDB Atlas zone-sharding patterns for multi-region data residency (GDPR, Saudi PDPL, and similar data-sovereignty regimes). Demonstrates how tenant data can be pinned to its legal jurisdiction (EU, USA, KSA) while the application sees a single global connection string.
+MongoDB Atlas zone-sharding patterns for data residency (GDPR, Saudi PDPL, and friends). Tenant data is physically pinned to its legal jurisdiction while the application still sees one connection string.
 
-> **Scope:** the deliverable is the schemas, compound shard keys, and zone-targeted query patterns. Zone routing only takes effect on a real Atlas cluster with configured shard zones — locally a single MongoDB instance stands in for the topology (see [Setup](#setup)). This is a patterns reference, not a turnkey compliance solution.
+What's here is the schemas, compound shard keys, and query patterns. Zone routing only actually happens on a real Atlas cluster with configured zones. Locally, a single MongoDB instance stands in for the topology. It's a patterns reference, not a compliance product.
 
-## Problem
+## The problem
 
-GDPR Article 44 and regional data sovereignty laws (Saudi PDPL, etc.) require that personal data of residents stays within geographic boundaries. Running separate database clusters per region creates operational overhead, cross-region join complexity, and connection management nightmares.
+GDPR Article 44 and similar laws say a resident's personal data stays inside a geographic boundary. Running a separate cluster per region gets you operational overhead, cross-region joins, and a connection-management mess.
 
-Atlas Zone Sharding solves this: one logical cluster, one connection string, but documents are physically pinned to region-specific replica sets based on a shard key. The application writes normally; Atlas routes the data to the correct jurisdiction.
+Zone sharding gives one logical cluster and one connection string, with documents pinned to region-specific replica sets by shard key. The app writes normally, Atlas puts the bytes in the right country.
 
 ## Architecture
 
@@ -36,135 +36,83 @@ graph TB
     style KSA fill:#dc2626,color:#fff
 ```
 
-**Key architectural decisions:**
-- **Region as shard key prefix**: Compound shard key `{ region: 1, tenantId: 1 }` ensures all data for a region lands on the same zone-tagged shard. The `region` prefix means Atlas can route writes without scatter-gather.
-- **Nearest read preference**: Default read preference set to `nearest` reduces latency by reading from the geographically closest replica.
-- **Region denormalization**: `region` field is stored on both `Tenant` and `User` documents. This avoids cross-collection lookups to determine data residency and enables the shard router to target reads without joins.
+## Three decisions worth reading
 
-## Tech Stack
+**Region leads the shard key.** `{ region: 1, tenantId: 1 }`. The prefix is what lets Atlas route a write to one zone instead of asking every shard. Get the order wrong and every query is a scatter-gather.
 
-| Technology | Why |
+**Region is denormalized onto both Tenant and User.** Slightly redundant, and it means no cross-collection lookup just to learn where a document is allowed to live.
+
+**Residency is enforced at write time, not by convention.** `POST /users` returns 409 if the user's region doesn't match its tenant's zone, and 404 if the tenant doesn't exist. A record physically cannot land in a zone that violates its tenant's residency.
+
+## Query routing
+
+| Query | Routing |
 |---|---|
-| **MongoDB Atlas** | Managed zone sharding with geographic shard zones. Single connection string abstracts multi-region topology. |
-| **Mongoose** | Schema validation + index definitions co-located with model code. Compound indexes match shard keys for optimal query routing. |
-| **Express 5** | Thin API layer demonstrating zone-targeted writes and reads. |
-| **Vitest** | Unit tests for the routing and residency logic that run without a live database. |
+| `User.find({ region: "EU", tenantId: "t1" })` | targeted, EU shard only |
+| `User.find({ tenantId: "t1" })` | scatter-gather across all three |
+| `User.find({ region: "EU" }).read("nearest")` | targeted, nearest replica |
 
-## Key Features
+Always include `region`. That's the whole discipline.
 
-- **Zone-targeted writes** -- documents automatically routed to the correct regional shard based on `region` field
-- **Targeted reads** -- queries including `region` hit only the relevant shard, avoiding scatter-gather
-- **Write-time residency guard** -- `POST /users` rejects a user whose `region` doesn't match its tenant's zone (409) or references a missing tenant (404), so a record can't land in a zone that violates the tenant's residency
-- **Nearest read preference** -- reads served from geographically closest replica for minimum latency; `DEFAULT_READ_PREFERENCE` is validated against the five MongoDB modes and falls back to `nearest` on a typo
-- **Compound shard key indexes** -- `{ region: 1, tenantId: 1 }` indexes match Atlas zone ranges
-- **Three-region support** -- EU (Frankfurt), USA (Virginia), KSA (Riyadh) with extensible region enum
-
-## Zone Sharding Configuration
+Cluster setup, run once:
 
 ```javascript
-// Atlas shell commands (run once during cluster setup):
 sh.shardCollection("global_db.tenants", { "region": 1, "tenantId": 1 })
 sh.addTagRange("global_db.tenants",
   { "region": "EU", "tenantId": MinKey },
   { "region": "EU", "tenantId": MaxKey },
-  "EU_ZONE"
-)
-// Repeat for USA_ZONE and KSA_ZONE
+  "EU_ZONE")
+// repeat for USA_ZONE and KSA_ZONE
 ```
 
-## Query Routing Behavior
+## Run it
 
-| Query Pattern | Routing | Latency |
-|---|---|---|
-| `User.find({ region: "EU", tenantId: "t1" })` | **Targeted** -- hits EU shard only | Low |
-| `User.find({ tenantId: "t1" })` | **Scatter-gather** -- hits all 3 shards | High |
-| `User.find({ region: "EU" }).read("nearest")` | **Targeted + nearest replica** | Lowest |
-
-Always include `region` in queries to avoid scatter-gather.
-
-## Scale Considerations
-
-| Dimension | Current | Production Path |
-|---|---|---|
-| **Regions** | 3 (EU, USA, KSA) | Add APAC, LATAM zones -- new enum value + Atlas zone tag |
-| **Tenant density** | Unbounded per region | Monitor chunk distribution; pre-split chunks for large tenants |
-| **Cross-region queries** | Scatter-gather | Add materialized views or CDC-based read replicas for global analytics |
-| **Compliance audit** | Application-level | Add MongoDB audit log with region filter |
-
-## Failure Handling
-
-1. **Region shard unavailable** -- writes to that region fail; other regions unaffected. Atlas auto-failover promotes secondary within the zone.
-2. **Connection failure** -- `process.exit(1)` on startup; orchestrator (K8s/ECS) restarts the pod.
-3. **Missing region in write** -- Mongoose schema validation rejects documents without valid region enum.
-4. **Scatter-gather on bad query** -- performance issue, not failure. Monitor with Atlas Query Profiler.
-
-## API
-
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/v1/tenants` | Create a tenant pinned to a region (`EU` / `USA` / `KSA`). |
-| `POST` | `/api/v1/users` | Create a user; rejected unless its `region` matches its tenant's zone. |
-| `GET` | `/api/v1/users/:region/:tenantId` | Targeted read (region in the path routes to a single shard, served `nearest`). |
-
-## Setup
-
-Requires Node 22 (see `.nvmrc`).
+Node 22.
 
 ```bash
 npm install
-cp .env.example .env  # Configure MONGO_URI
-npm run dev           # ts-node + nodemon; or `npm run build && npm start`
+cp .env.example .env      # MONGO_URI
+npm run dev
 ```
 
 ```bash
-# Create a tenant in the EU zone
 curl -X POST http://localhost:3000/api/v1/tenants \
   -H "Content-Type: application/json" \
   -d '{"tenantId": "acme-eu", "name": "Acme GmbH", "region": "EU"}'
 
-# Create a user in the same zone (allowed)
+# same zone, allowed
 curl -X POST http://localhost:3000/api/v1/users \
   -H "Content-Type: application/json" \
   -d '{"email": "ana@acme.eu", "tenantId": "acme-eu", "region": "EU"}'
 
-# Wrong region for that tenant -> 409 data residency violation
+# wrong zone for that tenant, 409
 curl -X POST http://localhost:3000/api/v1/users \
   -H "Content-Type: application/json" \
   -d '{"email": "ana@acme.eu", "tenantId": "acme-eu", "region": "USA"}'
 
-# Query users in the EU zone (targeted read)
 curl http://localhost:3000/api/v1/users/EU/acme-eu
 ```
-
-For local development, a single MongoDB instance simulates the topology. Zone sharding behavior only activates on Atlas with configured shard zones.
 
 ## Tests
 
 ```bash
-npm test   # vitest run
+npm test
 ```
 
-The suite covers the logic you can verify without a cluster:
+Covers what's verifiable without a cluster: the residency guard across all four outcomes, `resolveReadPreference` falling back to `nearest` on any typo or wrong case, and Mongoose schema validation plus the region-leading compound index on both models. Uses `validateSync()`, so no database connection. CI on Node 20 and 22.
 
-- `tests/residency.test.ts` -- the write-time residency guard (match, missing tenant, region mismatch, missing user region).
-- `tests/routing.test.ts` -- `resolveReadPreference`: every valid mode passes through, everything else (typo, wrong case, empty) falls back to `nearest`.
-- `tests/models.test.ts` -- Mongoose schema validation (region enum, required fields, defaults) and the region-leading compound shard-key index on both models. Uses `validateSync()`, so no database connection is made.
+## What it doesn't do
 
-CI (`.github/workflows/ci.yml`) runs the build and tests on Node 20 and 22.
+- No tenant migration tooling. Moving a tenant between regions is a manual, downtime-shaped problem.
+- Cross-region analytics is scatter-gather. Real answer is CDC into a separate reporting cluster.
+- Compliance checks are application-level. No MongoDB audit log wired up.
+- No chunk pre-splitting, so onboarding one enormous tenant will distribute badly.
+- Three regions hardcoded in the enum. Adding APAC is an enum value plus an Atlas zone tag.
 
-## Future Improvements
+## Deep-dive
 
-- [ ] Tenant migration tooling -- move tenant data between regions with zero downtime
-- [ ] Read-your-writes consistency for cross-region admin dashboards
-- [ ] CDC pipeline to sync anonymized analytics data to a global reporting cluster
-- [ ] Automated compliance reporting via audit logs
-- [ ] Pre-split chunk strategy for onboarding large enterprise tenants
-
-## Deep-Dive Architecture
-
-For a complete system design breakdown with Mermaid diagrams, visit the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/mongo-sharding).
+Full breakdown at the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/mongo-sharding).
 
 ## License
 
 MIT
-
