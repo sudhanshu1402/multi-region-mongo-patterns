@@ -8,7 +8,13 @@ export interface ITenant extends Document {
 }
 
 const TenantSchema = new Schema<ITenant>({
-  tenantId: { type: String, required: true, unique: true },
+  // Deliberately not `unique: true`. A unique index on { tenantId: 1 } alone is
+  // not prefixed by the { region: 1, tenantId: 1 } shard key, and Atlas rejects
+  // sh.shardCollection while such an index exists. The compound unique index
+  // below is shardable. It is genuinely weaker: nothing now stops the same
+  // tenantId existing in two regions. Global uniqueness on a sharded collection
+  // needs a separate unsharded registry collection, which this repo does not model.
+  tenantId: { type: String, required: true },
   name: { type: String, required: true },
   region: { type: String, enum: ['EU', 'USA', 'KSA'], required: true },
   createdAt: { type: Date, default: Date.now },
