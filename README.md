@@ -73,7 +73,7 @@ sh.addTagRange("global_db.tenants",
 
 ## Run it
 
-Node 22.
+Node 20.19 or newer.
 
 ```bash
 npm install
