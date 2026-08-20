@@ -1,4 +1,11 @@
-export type Region = 'EU' | 'USA' | 'KSA';
+export const REGIONS = ['EU', 'USA', 'KSA'] as const;
+
+export type Region = (typeof REGIONS)[number];
+
+// The region is the shard-key prefix. An unknown value scatter-gathers every zone
+// and comes back empty, so reject it at the boundary instead of querying.
+export const asRegion = (value: unknown): Region | null =>
+  REGIONS.includes(value as Region) ? (value as Region) : null;
 
 export interface ResidencyResult {
   ok: boolean;
