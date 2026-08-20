@@ -2,7 +2,7 @@ import express from 'express';
 import { connectToGlobalCluster } from './db/connection';
 import { Tenant } from './models/tenant';
 import { User } from './models/user';
-import { checkUserResidency } from './residency';
+import { asRegion, checkUserResidency, REGIONS } from './residency';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -58,9 +58,14 @@ app.post('/api/v1/users', async (req, res) => {
 // Endpoint demonstrating targeted reads avoiding scatter-gather
 app.get('/api/v1/users/:region/:tenantId', async (req, res) => {
   try {
-    const { region, tenantId } = req.params;
-    
-    // By including the `region` in the query, the mongos router forwards 
+    const region = asRegion(req.params.region);
+    const tenantId = asId(req.params.tenantId);
+    if (!region || !tenantId) {
+      res.status(400).json({ error: `region must be one of ${REGIONS.join(', ')} and tenantId non-empty` });
+      return;
+    }
+
+    // By including the `region` in the query, the mongos router forwards
     // the request ONLY to the shard hosting that region's zone, avoiding
     // cross-region global network hops.
     const users = await User.find({ region, tenantId })

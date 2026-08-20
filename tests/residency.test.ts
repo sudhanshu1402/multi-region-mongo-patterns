@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkUserResidency } from '../src/residency';
+import { asRegion, checkUserResidency, REGIONS } from '../src/residency';
 
 // checkUserResidency is the write-time data-residency decision for POST /users:
 // a user may only be created in the region its tenant is pinned to. This guards
@@ -27,5 +27,19 @@ describe('checkUserResidency (write-time residency guard)', () => {
 
   it('treats a missing user region as a mismatch, not a pass', () => {
     expect(checkUserResidency({ region: 'KSA' }, undefined).ok).toBe(false);
+  });
+});
+
+// asRegion is the read-side guard for GET /users/:region/:tenantId. The region is
+// the shard-key prefix, so anything outside the enum must not reach a query.
+describe('asRegion (read-time shard-key guard)', () => {
+  it('accepts every allowed zone', () => {
+    for (const region of REGIONS) expect(asRegion(region)).toBe(region);
+  });
+
+  it('rejects unknown, empty, wrong-case and non-string values', () => {
+    for (const bad of ['MARS', '', 'eu', 0, null, undefined, {}, ['EU']]) {
+      expect(asRegion(bad)).toBeNull();
+    }
   });
 });
