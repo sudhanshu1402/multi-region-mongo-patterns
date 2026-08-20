@@ -12,6 +12,12 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// Untrusted body fields reach Mongoose query filters. A JSON body can carry an
+// object, so `{"tenantId":{"$ne":"x"}}` would become a query operator and match
+// the wrong tenant. Reject anything that is not a plain non-empty string.
+const asId = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value : null;
+
 // Endpoint demonstrating zone-targeted writes
 app.post('/api/v1/tenants', async (req, res) => {
   try {
@@ -29,7 +35,12 @@ app.post('/api/v1/tenants', async (req, res) => {
 // Endpoint demonstrating data-resident user creation
 app.post('/api/v1/users', async (req, res) => {
   try {
-    const { email, tenantId, region } = req.body;
+    const { email, region } = req.body;
+    const tenantId = asId(req.body?.tenantId);
+    if (!tenantId) {
+      res.status(400).json({ error: 'tenantId must be a non-empty string' });
+      return;
+    }
     // Enforce data residency: the user's region must match its tenant's zone.
     const tenant = await Tenant.findOne({ tenantId });
     const check = checkUserResidency(tenant, region);
