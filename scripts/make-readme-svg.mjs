@@ -99,14 +99,11 @@ function runNpmTest() {
     env: { ...process.env, TZ: 'UTC', CI: 'true', NO_COLOR: '1' },
   });
   const text = plain(`${proc.stdout}\n${proc.stderr}`);
+  // Non-TTY vitest logs a per-file line carrying a duration, so only the totals are reproducible.
   const lines = text
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .filter((line) => !/\[MONGOOSE\]/.test(line) && !/trace-warnings/.test(line))
-    .filter((line) => !/^RUN\s+v/.test(line) && !/^Start at/.test(line))
-    .filter((line) => !/^>/.test(line))
-    .filter((line) => !/^Duration/.test(line));
+    .filter((line) => /^(Test Files|Tests)\s/.test(line));
   if (!lines.length) throw new Error(`no test output captured:\n${text}`);
   return lines;
 }
