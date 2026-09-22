@@ -123,21 +123,34 @@ function runResidency() {
 
 function testDemo() {
   const guard = must(runResidency(), [/"ok":true/, /"status":409/, /data residency violation/]);
-  const lines = must(runNpmTest(), [/Test Files\s+\d+ passed \(\d+\)/, /^Tests\s+22 passed \(22\)/]);
-  return demo(
-    [`$ ts-node ${DEMO_FILE}`, ...guard, '', '$ npm test', ...lines],
-    'proof it runs, offline'
-  );
+  // Assert the shape, not the count. Pinning the exact number meant every test
+  // added to the suite broke `npm run assets`, and with it the CI step that checks
+  // the committed diagrams are current. The guard's job is to catch a blank or
+  // failing capture, which `[1-9]\d* passed` still does.
+  const lines = must(runNpmTest(), [/Test Files\s+[1-9]\d* passed \(\d+\)/, /^Tests\s+[1-9]\d* passed \(\d+\)/]);
+  const passed = lines.find((line) => /^Tests\s/.test(line))?.match(/([1-9]\d*) passed/)?.[1];
+  if (!passed) throw new Error(`could not read a pass count from:\n${lines.join('\n')}`);
+  return {
+    passed,
+    markup: demo(
+      [`$ ts-node ${DEMO_FILE}`, ...guard, '', '$ npm test', ...lines],
+      'proof it runs, offline'
+    ),
+  };
 }
 
-const TILES = [
+// The count is filled in from the run that just happened, never typed here. A
+// literal drifts the moment a test is added, and a glance card that misstates its
+// own evidence is worse than one that shows no number at all.
+const tilesFor = (passed) => [
   ['PATTERN', 'zone sharding', 'one string, 3 real zones', COLOR.head],
   ['SHARD KEY', 'region first', 'else every read scatters', COLOR.cool],
   ['RESIDENCY', '409', 'zone mismatch rejected', COLOR.bad],
-  ['VERIFIED', '22 tests', 'offline, no cluster', COLOR.good],
+  ['VERIFIED', `${passed} tests`, 'offline, no cluster', COLOR.good],
 ];
 
-function glance() {
+function glance(passed) {
+  const TILES = tilesFor(passed);
   // 195px tile holds 24 glyphs at font-size 12, 14 at font-size 16.
   for (const [, big, small] of TILES) {
     if (small.length > 24 || big.length > 14) throw new Error(`tile text too long: ${big} / ${small}`);
@@ -152,7 +165,7 @@ function glance() {
     <text x="${x + 16}" y="106" fill="${COLOR.dim}" font-size="12">${cells(small)}</text>`;
   }).join('\n    ');
   const label =
-    'multi-region-mongo-patterns at a glance: zone sharding, region leads the shard key or every read scatters, a residency mismatch returns 409, 22 tests verified offline with no cluster needed';
+    `multi-region-mongo-patterns at a glance: zone sharding, region leads the shard key or every read scatters, a residency mismatch returns 409, ${passed} tests verified offline with no cluster needed`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${attr(label)}">
   <rect width="${width}" height="${height}" rx="10" fill="${COLOR.bg}" stroke="${COLOR.chrome}"/>
   <g font-family="${MONO}">
@@ -163,9 +176,12 @@ function glance() {
 }
 
 mkdirSync(join(ROOT, 'assets'), { recursive: true });
+// The suite runs once; both pictures are drawn from that single capture, so the
+// glance card can never claim a different number from the terminal beside it.
+const { passed, markup: demoMarkup } = testDemo();
 for (const [name, markup] of [
-  ['glance.svg', glance()],
-  ['demo.svg', testDemo()],
+  ['glance.svg', glance(passed)],
+  ['demo.svg', demoMarkup],
 ]) {
   writeFileSync(join(ROOT, 'assets', name), markup);
   process.stdout.write(`wrote assets/${name}\n`);

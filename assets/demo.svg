@@ -8,6 +8,6 @@
     <text x="26" y="98" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#f85149">user in USA: {"ok":false,"status":409,"error":"data residency violation: user region 'USA' does not match tenant region 'EU'"}</text>
     <text x="26" y="120" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#c9d1d9"></text>
     <text x="26" y="142" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#e6edf3">$ npm test</text>
-    <text x="26" y="164" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#3fb950">Test Files  3 passed (3)</text>
-    <text x="26" y="186" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#3fb950">Tests  22 passed (22)</text>
+    <text x="26" y="164" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#3fb950">Test Files  4 passed (4)</text>
+    <text x="26" y="186" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="500" fill="#3fb950">Tests  30 passed (30)</text>
 </svg>
