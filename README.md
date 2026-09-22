@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![multi-region-mongo-patterns at a glance: zone sharding pins tenants to a region-first shard key, a residency mismatch returns 409, 22 tests verified offline with no cluster needed](https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/glance.svg)
+![multi-region-mongo-patterns at a glance: zone sharding pins tenants to a region-first shard key, a residency mismatch returns 409, the suite verified offline with no cluster needed](https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/glance.svg)
 
 MongoDB Atlas zone-sharding patterns for data residency (GDPR, Saudi PDPL): tenant data pinned to its legal jurisdiction behind one connection string. Schema, shard keys, and query patterns only; a local MongoDB stands in for the topology, so zone routing itself needs a real Atlas cluster. A patterns reference, not a compliance product; why zone sharding beats a cluster-per-region in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -68,15 +68,32 @@ curl walkthrough (create a tenant, trigger the 409) in [docs/DESIGN.md](docs/DES
 
 ## Proof it runs
 
-![The real residency guard, run offline: an EU user in an EU tenant returns ok true, a USA user in the same EU tenant returns status 409 with "data residency violation: user region 'USA' does not match tenant region 'EU'", then npm test passes 22 of 22 with no MongoDB connection](https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/demo.svg)
+![The real residency guard, run offline: an EU user in an EU tenant returns ok true, a USA user in the same EU tenant returns status 409 with "data residency violation: user region 'USA' does not match tenant region 'EU'", then the suite passes with no MongoDB connection](https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/demo.svg)
 
 Both blocks are captured output, not typed text: `npm run assets` runs `scripts/demo-residency.ts`, which calls `checkUserResidency` from `src/residency.ts`, then runs the suite and writes back what both printed. `npm test` covers what's verifiable without a cluster: the residency guard, `resolveReadPreference`'s fallback to `nearest`, and each schema's compound index, all via `validateSync()`, no connection. CI on Node 20 and 22. Regenerate this image: `npm run assets`.
+
+## Rate limits
+
+Per-IP, on by default. Every route here is unauthenticated and both POSTs insert into
+Atlas, so without a cap anyone who can reach the process can fill a zone-sharded
+collection as fast as the cluster accepts writes. Authentication is the real answer and is
+outside what this repository demonstrates; this is the baseline in the meantime.
+
+| Routes | Default | Override |
+|---|---|---|
+| `POST /api/v1/tenants`, `POST /api/v1/users` | 60 / 15 min | `WRITE_RATE_LIMIT` |
+| `GET /api/v1/users/:region/:tenantId` | 300 / 15 min | `READ_RATE_LIMIT` |
+
+Writes are tighter because they cost storage someone has to reclaim. Behind a load
+balancer, set `TRUST_PROXY` to the number of proxy hops, or every request arrives from the
+balancer's address and the whole internet shares one bucket.
 
 ## What it doesn't do
 
 - No tenant migration tooling; moving a tenant between regions is manual, with downtime.
 - Cross-region analytics is scatter-gather; the real answer is CDC into a reporting cluster.
 - Compliance checks are application-level, no MongoDB audit log wired up.
+- Rate limits count per process; more than one replica needs a shared store.
 
 More gaps in [docs/DESIGN.md](docs/DESIGN.md).
 
