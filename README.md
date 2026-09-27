@@ -1,14 +1,10 @@
-<h1>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/banner-dark.svg" />
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/banner-light.svg" />
-  <img src="https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/banner-dark.svg" width="100%" alt="multi-region-mongo-patterns: Atlas zone sharding for data residency. reference implementation, needs real Atlas zones. The failure it exists for: a region that breaks tenant residency is rejected with 409, not stored." />
-</picture>
-</h1>
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/hero.svg" width="100%" alt="multi-region-mongo-patterns: a giant 409, what a write gets when its region breaks the tenant&#x27;s residency. Nothing is stored. Shard key region then tenantId, zones EU Frankfurt, USA Virginia, KSA Riyadh. Atlas zone sharding for GDPR and PDPL, a reference implementation." />
 
 [![CI](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/sudhanshu1402/multi-region-mongo-patterns/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![multi-region-mongo-patterns at a glance: zone sharding pins tenants to a region-first shard key, a residency mismatch returns 409, the suite verified offline with no cluster needed](https://raw.githubusercontent.com/sudhanshu1402/multi-region-mongo-patterns/main/assets/glance.svg)
+</div>
 
 MongoDB Atlas zone-sharding patterns for data residency (GDPR, Saudi PDPL): tenant data pinned to its legal jurisdiction behind one connection string. Schema, shard keys, and query patterns only; a local MongoDB stands in for the topology, so zone routing itself needs a real Atlas cluster. A patterns reference, not a compliance product; why zone sharding beats a cluster-per-region in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -100,6 +96,10 @@ More gaps in [docs/DESIGN.md](docs/DESIGN.md).
 ## Deep-dive
 
 Full breakdown at the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/mongo-sharding).
+
+---
+
+<sub>Part of [sudhanshu1402](https://github.com/sudhanshu1402)'s work: [keel](https://github.com/sudhanshu1402/keel) · [nocap](https://github.com/sudhanshu1402/nocap) · [receipts](https://github.com/sudhanshu1402/receipts) · [enterprise-auth-stack](https://github.com/sudhanshu1402/enterprise-auth-stack) · [distributed-queue-engine](https://github.com/sudhanshu1402/distributed-queue-engine) · **multi-region-mongo-patterns** · [otel-sdk-node](https://github.com/sudhanshu1402/otel-sdk-node) · [llm-assessment-pipeline](https://github.com/sudhanshu1402/llm-assessment-pipeline). Write-ups on the [System Design Portal](https://sudhanshu1402.github.io/system-design-portal/).</sub>
 
 ## License
 
